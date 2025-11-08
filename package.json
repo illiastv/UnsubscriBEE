@@ -1,0 +1,14 @@
+{
+  "name": "gmail-unsubscriber-node",
+  "version": "1.0.0",
+  "description": "Gmail Unsubscriber running on Node.js",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "googleapis": "^140.0.1",
+    "open": "^8.4.2"
+  }
+}

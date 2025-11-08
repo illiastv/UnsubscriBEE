@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gmail Unsubscriber (Node.js)</title>
+    <!-- 1. Load Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Simple loading spinner */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="h-full font-sans text-gray-800">
+    <div class="min-h-full flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-2xl w-full bg-white shadow-xl rounded-lg p-8 space-y-6">
+            <h1 class="text-3xl font-bold text-center text-indigo-600">Gmail Unsubscriber (Node.js)</h1>
+            
+            <!-- Message Box for status/errors -->
+            <div id="message-box" class="hidden p-3 rounded-md text-sm"></div>
+
+            <!-- 1. Authentication Section -->
+            <div id="auth-container">
+                <p class="text-center text-gray-600 mb-4">
+                    Connect your Gmail account to find and manage your subscriptions.
+                </p>
+                <button id="authorize-button" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    Sign in with Google
+                </button>
+            </div>
+
+            <!-- 2. Content Section (Hidden until authenticated) -->
+            <div id="content-container" class="hidden space-y-4">
+                <button id="fetch-button" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                    Find All Subscriptions
+                </button>
+                <button id="signout-button" class="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none">
+                    Sign Out
+                </button>
+
+                <!-- 3. Results Section -->
+                <div id="loading" class="hidden flex flex-col items-center justify-center p-6 space-y-2">
+                    <div class="loader"></div>
+                    <p class="text-gray-500">Fetching subscriptions... This may take a moment.</p>
+                </div>
+
+                <div id="results-container" class="pt-4">
+                    <h2 class="text-xl font-semibold mb-3">Found Subscriptions:</h2>
+                    <ul id="subscription-list" class="divide-y divide-gray-200">
+                        <!-- List items will be dynamically inserted here -->
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script type="text/javascript">
+    // --- Element references ---
+    const authContainer = document.getElementById('auth-container');
+    const contentContainer = document.getElementById('content-container');
+    const authorizeButton = document.getElementById('authorize-button');
+    const signoutButton = document.getElementById('signout-button');
+    const fetchButton = document.getElementById('fetch-button');
+    const subscriptionList = document.getElementById('subscription-list');
+    const loadingEl = document.getElementById('loading');
+    const messageBox = document.getElementById('message-box');
+
+    /**
+     * При загрузке страницы проверяем, вошел ли пользователь
+     */
+    window.onload = async () => {
+        try {
+            const response = await fetch('/auth-status');
+            const data = await response.json();
+            updateUi(data.isAuthenticated);
+        } catch (error) {
+            console.error('Error checking auth status:', error);
+            showMessage('Error connecting to server', 'error');
+            updateUi(false);
+        }
+    };
+
+    /**
+     * Обновляет UI в зависимости от статуса аутентификации
+     */
+    function updateUi(isAuthenticated) {
+        if (isAuthenticated) {
+            authContainer.classList.add('hidden');
+            contentContainer.classList.remove('hidden');
+        } else {
+            authContainer.classList.remove('hidden');
+            contentContainer.classList.add('hidden');
+        }
+    }
+
+    /**
+     * Перенаправляет на серверный маршрут /auth для входа
+     */
+    function handleAuthClick() {
+        window.location.href = '/auth';
+    }
+
+    /**
+     * Выход
+     */
+    async function handleSignOutClick() {
+        try {
+            await fetch('/signout');
+            updateUi(false);
+            subscriptionList.innerHTML = ''; // Clear list
+            showMessage('You have been signed out.', 'success');
+        } catch (error) {
+            showMessage('Error signing out', 'error');
+        }
+    }
+
+    /**
+     * Получение подписок с нашего Node.js сервера
+     */
+    async function handleFetchClick() {
+        subscriptionList.innerHTML = '';
+        loadingEl.classList.remove('hidden');
+        fetchButton.disabled = true;
+
+        try {
+            const response = await fetch('/fetch-subscriptions');
+            if (response.status === 401) {
+                showMessage('Authentication error. Please sign in again.', 'error');
+                updateUi(false);
+                return;
+            }
+            if (!response.ok) {
+                throw new Error(`Server error: ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            
+            if (data.senders && data.senders.length > 0) {
+                displaySenders(data.senders);
+            } else {
+                showMessage('No subscription emails found.', 'info');
+            }
+        } catch (error) {
+            console.error('Error fetching messages:', error);
+            showMessage(`Error: ${error.message}`, 'error');
+        } finally {
+            loadingEl.classList.add('hidden');
+            fetchButton.disabled = false;
+        }
+    }
+
+    /**
+     * Отображает список отправителей
+     */
+    function displaySenders(senders) {
+        subscriptionList.innerHTML = ''; // Clear list
+        showMessage(`Found ${senders.length} unique subscriptions.`, 'success');
+
+        senders.forEach(sender => {
+            const { from, listUnsubscribeHeader } = sender;
+            const li = document.createElement('li');
+            li.className = 'py-4 flex flex-col sm:flex-row sm:justify-between sm:items-center';
+
+            let senderName = from.replace(/</, '&lt;').replace(/>/, '&gt;');
+            let buttonsHtml = '';
+            let sources = [];
+
+            // Парсим заголовок (эта функция скопирована из старого файла)
+            const { mailto, http } = parseListUnsubscribe(listUnsubscribeHeader);
+
+            if (mailto) {
+                sources.push('email');
+                const mailtoButton = document.createElement('button');
+                mailtoButton.className = 'px-3 py-1 text-sm font-medium text-red-700 bg-red-100 rounded-full hover:bg-red-200 focus:outline-none';
+                mailtoButton.textContent = 'Unsub (Email)';
+                // Сохраняем данные mailto в кнопке
+                mailtoButton.dataset.mailto = JSON.stringify(mailto);
+                buttonsHtml += mailtoButton.outerHTML;
+            }
+
+            if (http) {
+                sources.push('web');
+                buttonsHtml += `
+                    <a href="${http}" target="_blank" rel="noopener noreferrer"
+                       class="px-3 py-1 text-sm font-medium text-blue-700 bg-blue-100 rounded-full hover:bg-blue-200">
+                       Unsub (Web)
+                    </a>
+                `;
+            }
+
+            li.innerHTML = `
+                <div class="mb-2 sm:mb-0">
+                    <p class="font-medium">${senderName}</p>
+                    <p class="text-sm text-gray-500">Unsubscribe via: ${sources.join(', ')}</p>
+                </div>
+                <div class="flex-shrink-0 flex space-x-2">
+                    ${buttonsHtml}
+                </div>
+            `;
+            
+            // Восстанавливаем обработчик
+            const mailtoBtn = li.querySelector('.text-red-700');
+            if (mailtoBtn) {
+                mailtoBtn.onclick = () => {
+                    const mailtoData = JSON.parse(mailtoBtn.dataset.mailto);
+                    handleMailtoUnsubscribe(mailtoData, mailtoBtn);
+                };
+            }
+
+            subscriptionList.appendChild(li);
+        });
+    }
+
+    /**
+     * Отправляет запрос на отписку на наш Node.js сервер
+     */
+    async function handleMailtoUnsubscribe(mailtoData, button) {
+        button.disabled = true;
+        button.textContent = 'Sending...';
+
+        try {
+            const response = await fetch('/unsubscribe-mailto', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ mailtoData: mailtoData }),
+            });
+
+            const result = await response.json();
+            if (!response.ok) {
+                throw new Error(result.error || 'Failed to send');
+            }
+            
+            // Success!
+            button.textContent = 'Sent!';
+            button.className = 'px-3 py-1 text-sm font-medium text-green-700 bg-green-100 rounded-full';
+            showMessage(`Unsubscribe email sent to ${mailtoData.to}`, 'success');
+
+        } catch (error) {
+            console.error('Error sending unsubscribe email:', error);
+            showMessage(`Error: ${error.message}`, 'error');
+            button.disabled = false;
+            button.textContent = 'Retry';
+        }
+    }
+
+
+    // --- 6. UTILITY FUNCTIONS (скопированы из старого файла) ---
+
+    function parseListUnsubscribe(headerValue) {
+        const result = { mailto: null, http: null };
+        if (!headerValue) return result;
+
+        const mailtoRegex = /<(mailto:(.+?))>/;
+        const mailtoMatch = headerValue.match(mailtoRegex);
+        if (mailtoMatch) {
+            try {
+                // Обернем в try...catch, так как URL может быть некорректным
+                const mailtoUrl = new URL(mailtoMatch[1]);
+                result.mailto = {
+                    to: mailtoUrl.pathname,
+                    subject: mailtoUrl.searchParams.get('subject') || ''
+                };
+            } catch(e) { console.error("Invalid mailto URL:", mailtoMatch[1]); }
+        }
+
+        const httpRegex = /<(https?:\/\/.+?)>/;
+        const httpMatch = headerValue.match(httpRegex);
+        if (httpMatch) {
+            result.http = httpMatch[1];
+        }
+
+        return result;
+    }
+
+    function showMessage(text, type = 'info') {
+        messageBox.textContent = text;
+        messageBox.classList.remove('hidden', 'bg-blue-100', 'text-blue-800', 'bg-green-100', 'text-green-800', 'bg-red-100', 'text-red-800');
+
+        if (type === 'success') {
+            messageBox.classList.add('bg-green-100', 'text-green-800');
+        } else if (type === 'error') {
+            messageBox.classList.add('bg-red-100', 'text-red-800');
+        } else {
+            messageBox.classList.add('bg-blue-100', 'text-blue-800');
+        }
+    }
+
+    // --- 7. EVENT LISTENERS ---
+    authorizeButton.onclick = handleAuthClick;
+    signoutButton.onclick = handleSignOutClick;
+    fetchButton.onclick = handleFetchClick;
+
+</script>
+</body>
+</html>
