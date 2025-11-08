@@ -1,308 +1,323 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full bg-gray-50">
+<html lang="en" class="h-full">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gmail Unsubscriber (Node.js)</title>
-    <!-- 1. Load Tailwind CSS for styling -->
+    <title>UnsubscriBEE</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        /* Simple loading spinner */
-        .loader {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3498db;
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            animation: spin 1s linear infinite;
+    <!-- Подключаем иконки -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        bee: {
+                            yellow: '#FFD700',
+                            black: '#1A1A1A',
+                            dark: '#121212',
+                            gray: '#2D2D2D',
+                        }
+                    },
+                    backgroundImage: {
+                        'honeycomb': "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='100' viewBox='0 0 56 100'%3E%3Cpath d='M28 66L0 50L0 16L28 0L56 16L56 50L28 66L28 100' fill='none' stroke='%23FFD700' stroke-width='2' opacity='0.1'/%3E%3Cpath d='M28 0L28 34L0 50L0 84L28 100L56 84L56 50L28 34' fill='none' stroke='%23FFD700' stroke-width='2' opacity='0.1'/%3E%3C/svg%3E\")",
+                    }
+                }
+            }
         }
-        @keyframes spin {
+    </script>
+    <style>
+        .honeycomb-bg {
+            background-color: #1A1A1A;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='49' viewBox='0 0 28 49'%3E%3Cg fill-rule='evenodd'%3E%3Cg id='hexagons' fill='%23FFD700' fill-opacity='0.05' fill-rule='nonzero'%3E%3Cpath d='M13.99 9.25l13 7.5v15l-13 7.5L1 31.75v-15l12.99-7.5zM3 17.9v12.7l10.99 6.34 11-6.35V17.9l-11-6.34L3 17.9zM0 15l12.98-7.5V0h-2v6.35L0 12.69v2.3zm0 18.5L12.98 41v8h-2v-6.85L0 35.81v-2.3zM15 0v7.5L27.99 15H28v-2.31h-.01L17 6.35V0h-2zm0 49v-8l12.99-7.5H28v2.31h-.01L17 42.15V49h-2z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+        }
+        .btn-primary {
+            @apply flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-bee-black bg-bee-yellow hover:bg-yellow-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bee-yellow transition-colors duration-200;
+        }
+        .btn-secondary {
+            @apply flex items-center justify-center px-4 py-2 border-2 border-bee-yellow text-sm font-medium rounded-md text-bee-yellow bg-transparent hover:bg-bee-yellow hover:text-bee-black focus:outline-none transition-colors duration-200;
+        }
+        .loader {
+            width: 48px;
+            height: 48px;
+            border: 5px solid #FFD700;
+            border-bottom-color: transparent;
+            border-radius: 50%;
+            display: inline-block;
+            box-sizing: border-box;
+            animation: rotation 1s linear infinite;
+        }
+        @keyframes rotation {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        .bee-flying {
+            animation: fly 3s ease-in-out infinite;
+        }
+        @keyframes fly {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
     </style>
 </head>
-<body class="h-full font-sans text-gray-800">
-    <div class="min-h-full flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-        <div class="max-w-2xl w-full bg-white shadow-xl rounded-lg p-8 space-y-6">
-            <h1 class="text-3xl font-bold text-center text-indigo-600">Gmail Unsubscriber (Node.js)</h1>
-            
-            <!-- Message Box for status/errors -->
-            <div id="message-box" class="hidden p-3 rounded-md text-sm"></div>
-
-            <!-- 1. Authentication Section -->
-            <div id="auth-container">
-                <p class="text-center text-gray-600 mb-4">
-                    Connect your Gmail account to find and manage your subscriptions.
-                </p>
-                <button id="authorize-button" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                    Sign in with Google
-                </button>
-            </div>
-
-            <!-- 2. Content Section (Hidden until authenticated) -->
-            <div id="content-container" class="hidden space-y-4">
-                <button id="fetch-button" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
-                    Find All Subscriptions
-                </button>
-                <button id="signout-button" class="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none">
-                    Sign Out
-                </button>
-
-                <!-- 3. Results Section -->
-                <div id="loading" class="hidden flex flex-col items-center justify-center p-6 space-y-2">
-                    <div class="loader"></div>
-                    <p class="text-gray-500">Fetching subscriptions... This may take a moment.</p>
+<body class="h-full font-sans text-gray-100 honeycomb-bg">
+    <div class="min-h-full flex flex-col">
+        <!-- Header -->
+        <header class="bg-bee-dark border-b border-bee-yellow/20 py-4">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center">
+                <div class="flex items-center space-x-3">
+                    <i class="fas fa-bee text-bee-yellow text-3xl bee-flying"></i>
+                    <h1 class="text-2xl font-bold text-bee-yellow tracking-wider">UnsubscriBEE</h1>
                 </div>
-
-                <div id="results-container" class="pt-4">
-                    <h2 class="text-xl font-semibold mb-3">Found Subscriptions:</h2>
-                    <ul id="subscription-list" class="divide-y divide-gray-200">
-                        <!-- List items will be dynamically inserted here -->
-                    </ul>
+                <div id="user-info" class="hidden flex items-center space-x-4">
+                    <span id="user-email" class="text-gray-400 text-sm"></span>
+                    <button id="signout-btn" class="btn-secondary">
+                        <i class="fas fa-sign-out-alt mr-2"></i> Sign Out
+                    </button>
                 </div>
             </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <!-- Auth Container -->
+            <div id="auth-container" class="max-w-md mx-auto text-center bg-bee-dark p-8 rounded-2xl border border-bee-yellow/20 shadow-2xl shadow-bee-yellow/10">
+                <i class="fas fa-hive text-bee-yellow text-6xl mb-6 opacity-80"></i>
+                <h2 class="text-3xl font-bold text-white mb-4">Welcome to the Hive</h2>
+                <p class="text-gray-400 mb-8">Connect your Gmail account and let our worker bees clean up your inbox from unwanted subscriptions.</p>
+                <a href="/auth" class="btn-primary w-full text-lg">
+                    <i class="fab fa-google mr-3"></i> Sign in with Google
+                </a>
+            </div>
+
+            <!-- App Container (Hidden by default) -->
+            <div id="app-container" class="hidden max-w-4xl mx-auto">
+                <!-- Control Panel -->
+                <div class="bg-bee-dark p-6 rounded-2xl border border-bee-yellow/20 mb-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-2xl font-bold text-white mb-1">Subscription Manager</h2>
+                        <p class="text-gray-400 text-sm">Find and unsubscribe from newsletters</p>
+                    </div>
+                    <button id="fetch-btn" class="btn-primary w-full sm:w-auto">
+                        <i class="fas fa-search mr-2"></i> Find Subscriptions
+                    </button>
+                </div>
+
+                <!-- Loading State -->
+                <div id="loading" class="hidden text-center py-12">
+                    <span class="loader mb-4"></span>
+                    <p class="text-bee-yellow text-lg animate-pulse">Our bees are scanning your inbox...</p>
+                    <p class="text-gray-500 text-sm mt-2">This might take a minute depending on your mailbox size</p>
+                </div>
+
+                <!-- Results List -->
+                <div id="results-list" class="space-y-4 hidden">
+                    <!-- Items will be injected here -->
+                </div>
+
+                <!-- Empty State -->
+                <div id="empty-state" class="hidden text-center py-16 bg-bee-dark rounded-2xl border border-bee-yellow/10">
+                    <i class="fas fa-check-circle text-bee-yellow text-5xl mb-4 opacity-50"></i>
+                    <h3 class="text-xl font-medium text-white mb-2">No subscriptions found</h3>
+                    <p class="text-gray-400">Your inbox looks clean! Try scanning again later.</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Notifications -->
+    <div id="notification" class="fixed bottom-4 right-4 transform translate-y-full transition-transform duration-300 max-w-sm w-full bg-bee-dark border-l-4 border-bee-yellow p-4 rounded shadow-lg flex items-start space-x-3 z-50">
+        <div class="flex-shrink-0">
+            <i id="notif-icon" class="fas fa-info-circle text-bee-yellow"></i>
+        </div>
+        <div class="flex-1">
+            <p id="notif-text" class="text-sm font-medium text-gray-200"></p>
         </div>
     </div>
 
-<script type="text/javascript">
-    // --- Element references ---
-    const authContainer = document.getElementById('auth-container');
-    const contentContainer = document.getElementById('content-container');
-    const authorizeButton = document.getElementById('authorize-button');
-    const signoutButton = document.getElementById('signout-button');
-    const fetchButton = document.getElementById('fetch-button');
-    const subscriptionList = document.getElementById('subscription-list');
-    const loadingEl = document.getElementById('loading');
-    const messageBox = document.getElementById('message-box');
+    <script>
+        // Elements
+        const authContainer = document.getElementById('auth-container');
+        const appContainer = document.getElementById('app-container');
+        const userInfo = document.getElementById('user-info');
+        const fetchBtn = document.getElementById('fetch-btn');
+        const loading = document.getElementById('loading');
+        const resultsList = document.getElementById('results-list');
+        const emptyState = document.getElementById('empty-state');
+        const signoutBtn = document.getElementById('signout-btn');
+        const notification = document.getElementById('notification');
+        const notifText = document.getElementById('notif-text');
 
-    /**
-     * При загрузке страницы проверяем, вошел ли пользователь
-     */
-    window.onload = async () => {
-        try {
-            const response = await fetch('/auth-status');
-            const data = await response.json();
-            updateUi(data.isAuthenticated);
-        } catch (error) {
-            console.error('Error checking auth status:', error);
-            showMessage('Error connecting to server', 'error');
-            updateUi(false);
+        // Check Auth Status on Load
+        checkAuth();
+
+        async function checkAuth() {
+            try {
+                const res = await fetch('/auth-status');
+                const data = await res.json();
+                if (data.isAuthenticated) {
+                    showApp();
+                } else {
+                    showAuth();
+                }
+            } catch (e) {
+                console.error('Auth check failed', e);
+                showAuth();
+            }
         }
-    };
 
-    /**
-     * Обновляет UI в зависимости от статуса аутентификации
-     */
-    function updateUi(isAuthenticated) {
-        if (isAuthenticated) {
-            authContainer.classList.add('hidden');
-            contentContainer.classList.remove('hidden');
-        } else {
+        function showAuth() {
             authContainer.classList.remove('hidden');
-            contentContainer.classList.add('hidden');
+            appContainer.classList.add('hidden');
+            userInfo.classList.add('hidden');
         }
-    }
 
-    /**
-     * Перенаправляет на серверный маршрут /auth для входа
-     */
-    function handleAuthClick() {
-        window.location.href = '/auth';
-    }
-
-    /**
-     * Выход
-     */
-    async function handleSignOutClick() {
-        try {
-            await fetch('/signout');
-            updateUi(false);
-            subscriptionList.innerHTML = ''; // Clear list
-            showMessage('You have been signed out.', 'success');
-        } catch (error) {
-            showMessage('Error signing out', 'error');
+        function showApp() {
+            authContainer.classList.add('hidden');
+            appContainer.classList.remove('hidden');
+            userInfo.classList.remove('hidden');
         }
-    }
 
-    /**
-     * Получение подписок с нашего Node.js сервера
-     */
-    async function handleFetchClick() {
-        subscriptionList.innerHTML = '';
-        loadingEl.classList.remove('hidden');
-        fetchButton.disabled = true;
+        // Fetch Subscriptions
+        fetchBtn.onclick = async () => {
+            loading.classList.remove('hidden');
+            resultsList.classList.add('hidden');
+            emptyState.classList.add('hidden');
+            fetchBtn.disabled = true;
+            fetchBtn.innerHTML = '<i class="fas fa-hourglass-half mr-2 fa-spin"></i> Scanning...';
 
-        try {
-            const response = await fetch('/fetch-subscriptions');
-            if (response.status === 401) {
-                showMessage('Authentication error. Please sign in again.', 'error');
-                updateUi(false);
+            try {
+                const res = await fetch('/fetch-subscriptions');
+                const data = await res.json();
+
+                if (data.error) throw new Error(data.error);
+
+                renderResults(data.senders);
+            } catch (e) {
+                showNotification(e.message, 'error');
+            } finally {
+                loading.classList.add('hidden');
+                fetchBtn.disabled = false;
+                fetchBtn.innerHTML = '<i class="fas fa-search mr-2"></i> Find Subscriptions';
+            }
+        };
+
+        function renderResults(senders) {
+            resultsList.innerHTML = '';
+            if (!senders || senders.length === 0) {
+                emptyState.classList.remove('hidden');
+                resultsList.classList.add('hidden');
                 return;
             }
-            if (!response.ok) {
-                throw new Error(`Server error: ${response.statusText}`);
-            }
-            
-            const data = await response.json();
-            
-            if (data.senders && data.senders.length > 0) {
-                displaySenders(data.senders);
-            } else {
-                showMessage('No subscription emails found.', 'info');
-            }
-        } catch (error) {
-            console.error('Error fetching messages:', error);
-            showMessage(`Error: ${error.message}`, 'error');
-        } finally {
-            loadingEl.classList.add('hidden');
-            fetchButton.disabled = false;
-        }
-    }
 
-    /**
-     * Отображает список отправителей
-     */
-    function displaySenders(senders) {
-        subscriptionList.innerHTML = ''; // Clear list
-        showMessage(`Found ${senders.length} unique subscriptions.`, 'success');
+            senders.forEach(sender => {
+                const { mailto, http } = parseListUnsubscribe(sender.listUnsubscribeHeader);
+                const el = document.createElement('div');
+                el.className = 'bg-bee-gray p-4 rounded-xl border border-bee-yellow/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 hover:border-bee-yellow/50 transition-colors duration-200';
+                
+                let actionsHtml = '<div class="flex space-x-2">';
+                if (mailto) {
+                    actionsHtml += `
+                        <button onclick="handleMailto('${mailto.to}', '${mailto.subject}', this)" 
+                                class="px-3 py-1.5 bg-red-500/10 text-red-400 text-sm font-medium rounded-lg hover:bg-red-500/20 transition-colors flex items-center">
+                            <i class="fas fa-envelope mr-2"></i> Unsub (Email)
+                        </button>`;
+                }
+                if (http) {
+                    actionsHtml += `
+                        <a href="${http}" target="_blank" 
+                           class="px-3 py-1.5 bg-blue-500/10 text-blue-400 text-sm font-medium rounded-lg hover:bg-blue-500/20 transition-colors flex items-center">
+                            <i class="fas fa-external-link-alt mr-2"></i> Unsub (Web)
+                        </a>`;
+                }
+                actionsHtml += '</div>';
 
-        senders.forEach(sender => {
-            const { from, listUnsubscribeHeader } = sender;
-            const li = document.createElement('li');
-            li.className = 'py-4 flex flex-col sm:flex-row sm:justify-between sm:items-center';
-
-            let senderName = from.replace(/</, '&lt;').replace(/>/, '&gt;');
-            let buttonsHtml = '';
-            let sources = [];
-
-            // Парсим заголовок (эта функция скопирована из старого файла)
-            const { mailto, http } = parseListUnsubscribe(listUnsubscribeHeader);
-
-            if (mailto) {
-                sources.push('email');
-                const mailtoButton = document.createElement('button');
-                mailtoButton.className = 'px-3 py-1 text-sm font-medium text-red-700 bg-red-100 rounded-full hover:bg-red-200 focus:outline-none';
-                mailtoButton.textContent = 'Unsub (Email)';
-                // Сохраняем данные mailto в кнопке
-                mailtoButton.dataset.mailto = JSON.stringify(mailto);
-                buttonsHtml += mailtoButton.outerHTML;
-            }
-
-            if (http) {
-                sources.push('web');
-                buttonsHtml += `
-                    <a href="${http}" target="_blank" rel="noopener noreferrer"
-                       class="px-3 py-1 text-sm font-medium text-blue-700 bg-blue-100 rounded-full hover:bg-blue-200">
-                       Unsub (Web)
-                    </a>
+                el.innerHTML = `
+                    <div class="flex items-center">
+                        <div class="w-10 h-10 rounded-full bg-bee-yellow/10 flex items-center justify-center mr-4">
+                             <i class="fas fa-envelope-open-text text-bee-yellow"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-medium text-gray-200">${escapeHtml(sender.from)}</h3>
+                            <span class="text-xs text-gray-500">
+                                Found via header
+                            </span>
+                        </div>
+                    </div>
+                    ${actionsHtml}
                 `;
-            }
-
-            li.innerHTML = `
-                <div class="mb-2 sm:mb-0">
-                    <p class="font-medium">${senderName}</p>
-                    <p class="text-sm text-gray-500">Unsubscribe via: ${sources.join(', ')}</p>
-                </div>
-                <div class="flex-shrink-0 flex space-x-2">
-                    ${buttonsHtml}
-                </div>
-            `;
-            
-            // Восстанавливаем обработчик
-            const mailtoBtn = li.querySelector('.text-red-700');
-            if (mailtoBtn) {
-                mailtoBtn.onclick = () => {
-                    const mailtoData = JSON.parse(mailtoBtn.dataset.mailto);
-                    handleMailtoUnsubscribe(mailtoData, mailtoBtn);
-                };
-            }
-
-            subscriptionList.appendChild(li);
-        });
-    }
-
-    /**
-     * Отправляет запрос на отписку на наш Node.js сервер
-     */
-    async function handleMailtoUnsubscribe(mailtoData, button) {
-        button.disabled = true;
-        button.textContent = 'Sending...';
-
-        try {
-            const response = await fetch('/unsubscribe-mailto', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ mailtoData: mailtoData }),
+                resultsList.appendChild(el);
             });
+            resultsList.classList.remove('hidden');
+        }
 
-            const result = await response.json();
-            if (!response.ok) {
-                throw new Error(result.error || 'Failed to send');
-            }
+        async function handleMailto(to, subject, btn) {
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Sending...';
             
-            // Success!
-            button.textContent = 'Sent!';
-            button.className = 'px-3 py-1 text-sm font-medium text-green-700 bg-green-100 rounded-full';
-            showMessage(`Unsubscribe email sent to ${mailtoData.to}`, 'success');
-
-        } catch (error) {
-            console.error('Error sending unsubscribe email:', error);
-            showMessage(`Error: ${error.message}`, 'error');
-            button.disabled = false;
-            button.textContent = 'Retry';
-        }
-    }
-
-
-    // --- 6. UTILITY FUNCTIONS (скопированы из старого файла) ---
-
-    function parseListUnsubscribe(headerValue) {
-        const result = { mailto: null, http: null };
-        if (!headerValue) return result;
-
-        const mailtoRegex = /<(mailto:(.+?))>/;
-        const mailtoMatch = headerValue.match(mailtoRegex);
-        if (mailtoMatch) {
             try {
-                // Обернем в try...catch, так как URL может быть некорректным
-                const mailtoUrl = new URL(mailtoMatch[1]);
-                result.mailto = {
-                    to: mailtoUrl.pathname,
-                    subject: mailtoUrl.searchParams.get('subject') || ''
+                const res = await fetch('/unsubscribe-mailto', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mailtoData: { to, subject } })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    btn.innerHTML = '<i class="fas fa-check mr-2"></i> Sent!';
+                    btn.classList.remove('bg-red-500/10', 'text-red-400');
+                    btn.classList.add('bg-green-500/10', 'text-green-400');
+                    showNotification('Unsubscribe request sent successfully!', 'success');
+                } else {
+                    throw new Error('Failed to send');
+                }
+            } catch (e) {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                showNotification('Failed to send unsubscribe email', 'error');
+            }
+        }
+
+        // Sign Out
+        signoutBtn.onclick = async () => {
+            await fetch('/signout');
+            window.location.reload();
+        };
+
+        // Helpers
+        function parseListUnsubscribe(header) {
+            const mailtoMatch = header.match(/<mailto:([^>]+)>/);
+            const httpMatch = header.match(/<(https?:\/\/[^>]+)>/);
+            
+            let mailto = null;
+            if (mailtoMatch) {
+                const url = new URL('mailto:' + mailtoMatch[1]);
+                mailto = {
+                    to: url.pathname,
+                    subject: url.searchParams.get('subject') || ''
                 };
-            } catch(e) { console.error("Invalid mailto URL:", mailtoMatch[1]); }
+            }
+
+            return {
+                mailto,
+                http: httpMatch ? httpMatch[1] : null
+            };
         }
 
-        const httpRegex = /<(https?:\/\/.+?)>/;
-        const httpMatch = headerValue.match(httpRegex);
-        if (httpMatch) {
-            result.http = httpMatch[1];
+        function showNotification(text, type = 'info') {
+            notifText.textContent = text;
+            notification.classList.remove('translate-y-full');
+            setTimeout(() => notification.classList.add('translate-y-full'), 3000);
         }
 
-        return result;
-    }
-
-    function showMessage(text, type = 'info') {
-        messageBox.textContent = text;
-        messageBox.classList.remove('hidden', 'bg-blue-100', 'text-blue-800', 'bg-green-100', 'text-green-800', 'bg-red-100', 'text-red-800');
-
-        if (type === 'success') {
-            messageBox.classList.add('bg-green-100', 'text-green-800');
-        } else if (type === 'error') {
-            messageBox.classList.add('bg-red-100', 'text-red-800');
-        } else {
-            messageBox.classList.add('bg-blue-100', 'text-blue-800');
+        function escapeHtml(unsafe) {
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
         }
-    }
-
-    // --- 7. EVENT LISTENERS ---
-    authorizeButton.onclick = handleAuthClick;
-    signoutButton.onclick = handleSignOutClick;
-    fetchButton.onclick = handleFetchClick;
-
-</script>
+    </script>
 </body>
 </html>
