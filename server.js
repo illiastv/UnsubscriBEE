@@ -4,8 +4,9 @@ const open = require('open');
 const path = require('path');
 
 // Configuration
-const GOOGLE_CLIENT_ID = '675940421997-d3a1ooq01nip3h0aocn558ilr0e907kj.apps.googleusercontent.com';
-const GOOGLE_CLIENT_SECRET = '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';
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || 'YOUR_CLIENT_ID_HERE';
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || 'YOUR_CLIENT_SECRET_HERE';
+
 const REDIRECT_URI = 'http://localhost:3000/oauth2callback';
 
 const SCOPES = [
