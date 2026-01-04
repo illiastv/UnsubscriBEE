@@ -3,7 +3,7 @@ const { google } = require('googleapis');
 const open = require('open');
 const path = require('path');
 
-// --- 1. КОНФИГУРАЦИЯ ---
+// Configuration
 const GOOGLE_CLIENT_ID = '675940421997-d3a1ooq01nip3h0aocn558ilr0e907kj.apps.googleusercontent.com';
 const GOOGLE_CLIENT_SECRET = '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';
 const REDIRECT_URI = 'http://localhost:3000/oauth2callback';
@@ -27,7 +27,7 @@ let tokens = null;
 
 app.use(express.json());
 
-// --- 2. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
+// Helper Functions
 
 function findHeader(headers, name) {
     if (!headers) return null;
@@ -53,7 +53,7 @@ function extractUnsubscribeData(headers) {
     
     if (!listUnsubscribe || !from) return null;
 
-    // Парсим mailto: или http ссылки
+    // Parse mailto: or http links
     const mailtoMatch = listUnsubscribe.match(/mailto:([^>?\s]+)(\?[^>]*)?/);
     const httpMatch = listUnsubscribe.match(/https?:\/\/[^>\s]+/);
 
@@ -66,7 +66,7 @@ function extractUnsubscribeData(headers) {
     };
 }
 
-// --- 3. БАЗОВЫЕ МАРШРУТЫ ---
+// Basic Routes
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
@@ -76,7 +76,7 @@ app.get('/auth', (req, res) => {
     const authUrl = oAuth2Client.generateAuthUrl({
         access_type: 'offline',
         scope: SCOPES,
-        prompt: 'consent' // Форсируем запрос разрешений заново
+        prompt: 'consent'
     });
     res.redirect(authUrl);
 });
@@ -90,10 +90,10 @@ app.get('/oauth2callback', async (req, res) => {
         const { tokens: newTokens } = await oAuth2Client.getToken(code);
         oAuth2Client.setCredentials(newTokens);
         tokens = newTokens;
-        console.log('✅ Успешная авторизация! Токены получены.');
+        console.log('✅ Authentication successful! Tokens received.');
         res.redirect('/');
     } catch (error) {
-        console.error('❌ Ошибка при получении токенов:', error.message);
+        console.error('❌ Error obtaining tokens:', error.message);
         res.status(500).send('Authentication failed');
     }
 });
@@ -105,11 +105,11 @@ app.get('/auth-status', (req, res) => {
 app.get('/signout', (req, res) => {
     tokens = null;
     oAuth2Client.setCredentials(null);
-    console.log('👋 Пользователь вышел.');
+    console.log('👋 User signed out.');
     res.json({ success: true, message: 'Signed out' });
 });
 
-// --- 4. ТЕСТОВЫЙ МАРШРУТ (для отладки) ---
+// Test Endpoint (for debugging)
 
 app.get('/test-headers', async (req, res) => {
     if (!tokens) return res.status(401).json({ error: 'Not authenticated' });
@@ -118,7 +118,7 @@ app.get('/test-headers', async (req, res) => {
     const gmail = google.gmail({ version: 'v1', auth: oAuth2Client });
 
     try {
-        console.log('🔍 Тестовый запрос: загружаю первые 20 писем...');
+        console.log('🔍 Test request: loading first 20 messages...');
         
         const listResponse = await gmail.users.messages.list({
             userId: 'me',
@@ -126,7 +126,7 @@ app.get('/test-headers', async (req, res) => {
         });
 
         const messages = listResponse.data.messages || [];
-        console.log(`📧 Найдено писем: ${messages.length}`);
+        console.log(`📧 Messages found: ${messages.length}`);
 
         if (messages.length === 0) {
             return res.json({ error: 'No messages found', headers: [] });
@@ -156,7 +156,7 @@ app.get('/test-headers', async (req, res) => {
         });
 
         const withUnsub = analysis.filter(a => a.hasUnsubscribe);
-        console.log(`✅ Писем с отпиской: ${withUnsub.length} из ${analysis.length}`);
+        console.log(`✅ Messages with unsubscribe: ${withUnsub.length} out of ${analysis.length}`);
 
         res.json({ 
             total: analysis.length,
@@ -164,12 +164,12 @@ app.get('/test-headers', async (req, res) => {
             details: analysis 
         });
     } catch (error) {
-        console.error('❌ Ошибка в test-headers:', error.message);
+        console.error('❌ Error in test-headers:', error.message);
         res.status(500).json({ error: error.message });
     }
 });
 
-// --- 5. ОСНОВНОЙ ПОИСК ПОДПИСОК ---
+// Main Subscription Search
 
 app.get('/fetch-subscriptions', async (req, res) => {
     if (!tokens) {
@@ -178,21 +178,20 @@ app.get('/fetch-subscriptions', async (req, res) => {
     oAuth2Client.setCredentials(tokens);
     const gmail = google.gmail({ version: 'v1', auth: oAuth2Client });
 
-    const MAX_EMAILS_TO_CHECK = 1000; // Снизил для начала
+    const MAX_EMAILS_TO_CHECK = 1000;
     const PAGE_SIZE = 100;
     let allMessages = [];
     let pageToken = null;
 
     try {
-        console.log(`🚀 Начинаю поиск подписок (до ${MAX_EMAILS_TO_CHECK} писем)...`);
+        console.log(`🚀 Starting subscription search (up to ${MAX_EMAILS_TO_CHECK} emails)...`);
 
-        // --- ШАГ 1: Собираем ID писем ---
+        // Step 1: Collect message IDs
         do {
-            console.log(`📥 Загружаю страницу писем (pageToken: ${pageToken || 'first'})...`);
+            console.log(`📥 Loading message page (pageToken: ${pageToken || 'first'})...`);
             
             const listResponse = await gmail.users.messages.list({
                 userId: 'me',
-                // Используем более широкий запрос
                 q: 'unsubscribe',
                 maxResults: PAGE_SIZE,
                 pageToken: pageToken
@@ -206,9 +205,9 @@ app.get('/fetch-subscriptions', async (req, res) => {
             const messages = listResponse.data.messages;
             if (messages && messages.length > 0) {
                 allMessages = allMessages.concat(messages);
-                console.log(`✅ Найдено еще ${messages.length} писем. Всего: ${allMessages.length}`);
+                console.log(`✅ Found ${messages.length} more messages. Total: ${allMessages.length}`);
             } else {
-                console.log('⚠️ Эта страница не вернула писем');
+                console.log('⚠️ This page returned no messages');
             }
 
             pageToken = listResponse.data.nextPageToken;
@@ -216,13 +215,13 @@ app.get('/fetch-subscriptions', async (req, res) => {
         } while (pageToken && allMessages.length < MAX_EMAILS_TO_CHECK);
 
         if (allMessages.length === 0) {
-            console.log('❌ Gmail не нашел писем с "unsubscribe".');
+            console.log('❌ Gmail found no messages with "unsubscribe".');
             return res.json({ senders: [], total: 0 });
         }
 
-        console.log(`📊 Сбор ID завершен. Всего найдено: ${allMessages.length}. Начинаю загрузку деталей...`);
+        console.log(`📊 ID collection complete. Total found: ${allMessages.length}. Starting detail loading...`);
 
-        // --- ШАГ 2: Загружаем детали писем пачками ---
+        // Step 2: Load message details in batches
         const BATCH_SIZE = 50;
         const senders = new Map();
         let processedCount = 0;
@@ -232,7 +231,7 @@ app.get('/fetch-subscriptions', async (req, res) => {
             const batchNum = Math.floor(i / BATCH_SIZE) + 1;
             const totalBatches = Math.ceil(allMessages.length / BATCH_SIZE);
             
-            console.log(`🔄 Обрабатываю пачку ${batchNum}/${totalBatches} (письма ${i + 1}-${Math.min(i + BATCH_SIZE, allMessages.length)})...`);
+            console.log(`🔄 Processing batch ${batchNum}/${totalBatches} (messages ${i + 1}-${Math.min(i + BATCH_SIZE, allMessages.length)})...`);
 
             const batchPromises = batch.map(msg => 
                 gmail.users.messages.get({
@@ -241,14 +240,14 @@ app.get('/fetch-subscriptions', async (req, res) => {
                     format: 'metadata',
                     metadataHeaders: ['From', 'List-Unsubscribe', 'X-Unsubscribe']
                 }).then(res => res.data).catch(err => {
-                    console.error(`⚠️ Ошибка загрузки письма ${msg.id}:`, err.message);
+                    console.error(`⚠️ Error loading message ${msg.id}:`, err.message);
                     return null;
                 })
             );
             
             const results = await Promise.all(batchPromises);
 
-            // Обработка результатов пачки
+            // Process batch results
             for (const data of results) {
                 if (!data || !data.payload) continue;
                 
@@ -264,13 +263,13 @@ app.get('/fetch-subscriptions', async (req, res) => {
                 }
             }
 
-            console.log(`   ✓ Найдено уникальных подписок: ${senders.size}`);
+            console.log(`   ✓ Unique subscriptions found: ${senders.size}`);
 
-            // Пауза между пачками
+            // Pause between batches
             await new Promise(resolve => setTimeout(resolve, 200));
         }
         
-        console.log(`🎉 Обработка завершена! Найдено ${senders.size} уникальных подписок из ${allMessages.length} писем.`);
+        console.log(`🎉 Processing complete! Found ${senders.size} unique subscriptions from ${allMessages.length} emails.`);
         
         const sendersArray = Array.from(senders.entries()).map(([from, data]) => ({
             from,
@@ -284,13 +283,13 @@ app.get('/fetch-subscriptions', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('💥 Глобальная ошибка при поиске подписок:', error.message);
+        console.error('💥 Global error during subscription search:', error.message);
         console.error('Stack:', error.stack);
         res.status(500).json({ error: 'Failed to fetch subscriptions', details: error.message });
     }
 });
 
-// --- 6. ОТПИСКА ---
+// Unsubscribe
 
 app.post('/unsubscribe-mailto', async (req, res) => {
     if (!tokens) {
@@ -298,7 +297,7 @@ app.post('/unsubscribe-mailto', async (req, res) => {
     }
     
     const { mailtoData } = req.body;
-    console.log(`📧 Попытка отписки через email для: ${mailtoData.to}`);
+    console.log(`📧 Attempting email unsubscribe for: ${mailtoData.to}`);
 
     oAuth2Client.setCredentials(tokens);
     const gmail = google.gmail({ version: 'v1', auth: oAuth2Client });
@@ -323,23 +322,23 @@ app.post('/unsubscribe-mailto', async (req, res) => {
             }
         });
         
-        console.log(`✅ Письмо отписки отправлено на ${mailtoData.to}`);
+        console.log(`✅ Unsubscribe email sent to ${mailtoData.to}`);
         res.json({ success: true, message: `Unsubscribe email sent to ${mailtoData.to}` });
 
     } catch (error) {
-        console.error('❌ Ошибка при отправке письма:', error.message);
+        console.error('❌ Error sending email:', error.message);
         res.status(500).json({ error: 'Failed to send unsubscribe email' });
     }
 });
 
-// --- 7. ЗАПУСК СЕРВЕРА ---
+// Start Server
 
 app.listen(port, () => {
-    console.log(`\n🚀 Сервер запущен: http://localhost:${port}`);
-    console.log(`📝 Доступные эндпоинты:`);
-    console.log(`   - GET  /              Главная страница`);
-    console.log(`   - GET  /auth          Авторизация`);
-    console.log(`   - GET  /test-headers  Тест (20 писем)`);
-    console.log(`   - GET  /fetch-subscriptions  Полный поиск`);
-    console.log(`   - POST /unsubscribe-mailto   Отписка\n`);
+    console.log(`\n🚀 Server running: http://localhost:${port}`);
+    console.log(`📝 Available endpoints:`);
+    console.log(`   - GET  /              Main page`);
+    console.log(`   - GET  /auth          Authorization`);
+    console.log(`   - GET  /test-headers  Test (20 messages)`);
+    console.log(`   - GET  /fetch-subscriptions  Full search`);
+    console.log(`   - POST /unsubscribe-mailto   Unsubscribe\n`);
 });
